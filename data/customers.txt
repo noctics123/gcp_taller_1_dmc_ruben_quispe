@@ -1,0 +1,13 @@
+customer_id|first_name|last_name|email|segment
+1001|Maricel|Salas|Maricel.Salas@example.com|ENT
+1002|Diana|Motta| diana.motta@example.com |ENT
+1003|Lucía|Motta| lucía.motta@example.com |ret
+1004|Rosa|Mendoza|Rosa.Mendoza@example.com|SMB
+1005|Rosa|García| rosa.garcía@example.com |RET
+1006|Pedro|García| pedro.garcía@example.com |SMB
+1007|Diana|Castro|Diana.Castro@example.com|ret
+1008|Pedro|Tello|Pedro.Tello@example.com|ret
+1009|Maricel|Mendoza|Maricel.Mendoza@example.com|ret
+1010|Pedro|Motta|Pedro.Motta@example.com|ENT
+1011|Iván|Alcalá| iván.alcalá@example.com |ret
+1012|Ana|Pérez|Ana.Pérez@example.com|ENT

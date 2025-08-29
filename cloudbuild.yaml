@@ -1,0 +1,123 @@
+substitutions:
+  _REGION: us-central1
+  _BQ_LOCATION: US
+  _CDF_INSTANCE: taller1-cdf
+  _BQ_DATASET: retail_curated
+  _BUCKET: example-taller1-raw
+
+steps:
+  # 0) Habilitar APIs necesarias (idempotente)
+  - name: gcr.io/cloud-builders/gcloud
+    id: 'enable-apis'
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gcloud services enable \
+          datafusion.googleapis.com \
+          storage.googleapis.com \
+          bigquery.googleapis.com \
+          dataproc.googleapis.com \
+          serviceusage.googleapis.com \
+          logging.googleapis.com \
+          compute.googleapis.com \
+          cloudresourcemanager.googleapis.com \
+          serviceconsumermanagement.googleapis.com \
+          iam.googleapis.com \
+          iamcredentials.googleapis.com \
+          servicenetworking.googleapis.com
+
+  # 0.1) Asegurar permisos de ejecución a scripts (por si el zip vino de Windows)
+  - name: gcr.io/cloud-builders/gcloud
+    id: 'chmod-scripts'
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        chmod +x scripts/*.sh || true
+
+  # 1) Crear bucket GCS y subir data
+  - name: gcr.io/cloud-builders/gsutil
+    id: 'create-bucket'
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gsutil mb -l ${_REGION} "gs://${_BUCKET}" || echo "Bucket exists"
+        gsutil -m cp -r data/* "gs://${_BUCKET}/" || true
+
+  # 2) Crear dataset de BigQuery (si no existe)
+  - name: gcr.io/cloud-builders/gcloud
+    id: 'bq-dataset'
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        bq --location=${_BQ_LOCATION} ls ${_BQ_DATASET} >/dev/null 2>&1 || \
+          bq --location=${_BQ_LOCATION} mk -d --description "Dataset for Taller1 curated sales" ${_BQ_DATASET}
+
+  # 3) Crear instancia de Cloud Data Fusion (Basic) si no existe
+  - name: gcr.io/cloud-builders/gcloud
+    id: 'create-cdf'
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gcloud beta data-fusion instances describe ${_CDF_INSTANCE} --location=${_REGION} >/dev/null 2>&1 && echo "Instance exists" || \
+          gcloud beta data-fusion instances create ${_CDF_INSTANCE} \
+            --location=${_REGION} \
+            --edition=basic
+
+  # 4) Esperar a que la instancia quede RUNNING
+  - name: gcr.io/cloud-builders/gcloud
+    id: 'wait-cdf'
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        bash scripts/wait_for_cdf.sh "${_REGION}" "${_CDF_INSTANCE}"
+
+  # 5) Habilitar logging y monitoring en CDF (idempotente)
+  - name: gcr.io/cloud-builders/gcloud
+    id: 'enable-cdf-monitoring'
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gcloud beta data-fusion instances update ${_CDF_INSTANCE} --location=${_REGION} \
+          --enable_stackdriver_logging --enable_stackdriver_monitoring || true
+
+  # 6) Desplegar el pipeline (CDAP REST) con el bucket resuelto
+  - name: gcr.io/cloud-builders/gcloud
+    id: 'deploy-pipeline'
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        if [[ -f datafusion/pipeline.json ]]; then
+          sed "s|\${_BUCKET}|${_BUCKET}|g" datafusion/pipeline.json > /workspace/pipeline_resolved.json
+          bash scripts/deploy_pipeline.sh "${_REGION}" "${_CDF_INSTANCE}" "Caso2" "/workspace/pipeline_resolved.json"
+        else
+          echo "No pipeline.json found; skipping deploy"
+        fi
+
+  # 7) Iniciar una ejecución del pipeline
+  - name: gcr.io/cloud-builders/gcloud
+    id: 'run-pipeline'
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        bash scripts/start_pipeline.sh "${_REGION}" "${_CDF_INSTANCE}" "Caso2"
+
+  # 8) (Opcional) Crear tabla con esquema si la quieres explícita
+  - name: gcr.io/cloud-builders/gcloud
+    id: 'bq-schema-optional'
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        bq ls --format=json ${_BQ_DATASET} | grep -q '"tableId": "curated_sales"' && echo "Table exists" || \
+          bq mk --table ${_BQ_DATASET}.curated_sales bq/curated_sales_schema.json || true
+
+timeout: "4800s"

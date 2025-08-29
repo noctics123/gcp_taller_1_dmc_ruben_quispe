@@ -1,0 +1,565 @@
+{
+  "artifact": {
+    "name": "cdap-data-pipeline",
+    "version": "6.11.1",
+    "scope": "SYSTEM",
+    "label": "Data Pipeline - Batch"
+  },
+  "description": "",
+  "name": "Caso2",
+  "change": {
+    "description": ""
+  },
+  "parentVersion": "",
+  "config": {
+    "resources": {
+      "memoryMB": 2048,
+      "virtualCores": 1
+    },
+    "driverResources": {
+      "memoryMB": 2048,
+      "virtualCores": 1
+    },
+    "connections": [
+      {
+        "from": "OrderCSV",
+        "to": "WranglerOrders"
+      },
+      {
+        "from": "WranglerOrders",
+        "to": "Join_Orders_Customer"
+      },
+      {
+        "from": "Join_Orders_Customer",
+        "to": "Join_With_Products"
+      },
+      {
+        "from": "Join_With_Products",
+        "to": "Join_With_Promos"
+      },
+      {
+        "from": "Join_With_Promos",
+        "to": "WranglerFinalize"
+      },
+      {
+        "from": "WranglerFinalize",
+        "to": "BigQuerySink"
+      },
+      {
+        "from": "CustomerTXT",
+        "to": "WranglerCustomer"
+      },
+      {
+        "from": "ProductsCSV",
+        "to": "WranglerProduct"
+      },
+      {
+        "from": "WranglerProduct",
+        "to": "Join_With_Products"
+      },
+      {
+        "from": "PromotionJSON",
+        "to": "WranglerPromos"
+      },
+      {
+        "from": "WranglerPromos",
+        "to": "Join_With_Promos"
+      },
+      {
+        "from": "WranglerCustomer",
+        "to": "Join_Orders_Customer"
+      }
+    ],
+    "comments": [],
+    "postActions": [],
+    "properties": {},
+    "processTimingEnabled": true,
+    "stageLoggingEnabled": false,
+    "stages": [
+      {
+        "name": "OrderCSV",
+        "plugin": {
+          "name": "GCSFile",
+          "type": "batchsource",
+          "label": "OrderCSV",
+          "artifact": {
+            "name": "google-cloud",
+            "version": "0.24.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "useConnection": "true",
+            "referenceName": "gcp-bo-25.order.csv",
+            "path": "gs://${_BUCKET}/orders.csv",
+            "format": "csv",
+            "sampleSize": "1000",
+            "filenameOnly": "false",
+            "recursive": "false",
+            "ignoreNonExistingFolders": "false",
+            "encrypted": "false",
+            "fileEncoding": "UTF-8",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"}]}",
+            "enableQuotedValues": "false",
+            "skipHeader": "true",
+            "connection": "${conn(Cloud Storage Default)}"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"}]}"
+          }
+        ],
+        "id": "OrderCSV"
+      },
+      {
+        "name": "WranglerOrders",
+        "plugin": {
+          "name": "Wrangler",
+          "type": "transform",
+          "label": "WranglerOrders",
+          "artifact": {
+            "name": "wrangler-transform",
+            "version": "4.11.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "field": "*",
+            "expressionLanguage": "jexl",
+            "directives": "parse-as-date: order_date 'yyyy-MM-dd'\nset-column : order_year year(order_date)\nset-column : order_month month(order_date)\nset-column : order_day day(order_date)\nset-column : unit_price toDouble(unit_price)\nset-column : qty toInteger(qty)\nset-column : ship_country upper(trim(ship_country))",
+            "on-error": "fail-pipeline",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"}]}",
+            "precondition": "false"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"}]}"
+          }
+        ],
+        "inputSchema": [
+          {
+            "name": "OrderCSV",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"}]}"
+          }
+        ],
+        "id": "WranglerOrders"
+      },
+      {
+        "name": "Join_Orders_Customer",
+        "plugin": {
+          "name": "Joiner",
+          "type": "batchjoiner",
+          "label": "Join_Orders_Customer",
+          "artifact": {
+            "name": "core-plugins",
+            "version": "2.13.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "selectedFields": "WranglerOrders.order_id as order_id,WranglerOrders.order_date as order_date,WranglerOrders.customer_id as customer_id,WranglerOrders.product_id as product_id,WranglerOrders.qty as qty,WranglerOrders.unit_price as unit_price,WranglerOrders.ship_country as ship_country,WranglerOrders.order_year as order_year,WranglerOrders.order_month as order_month,WranglerOrders.order_day as order_day,WranglerCustomer.first_name as first_name,WranglerCustomer.last_name as last_name,WranglerCustomer.email as email,WranglerCustomer.segment as segment",
+            "requiredInputs": "WranglerOrders,WranglerCustomer",
+            "conditionType": "basic",
+            "schema": "{\"type\":\"record\",\"name\":\"join.typeoutput\",\"fields\":[{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}",
+            "joinKeys": "WranglerOrders.customer_id = WranglerCustomer.customer_id",
+            "joinNullKeys": "true",
+            "distributionEnabled": "false"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"join.typeoutput\",\"fields\":[{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "inputSchema": [
+          {
+            "name": "WranglerOrders",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"}]}"
+          },
+          {
+            "name": "WranglerCustomer",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "id": "Join_Orders_Customer"
+      },
+      {
+        "name": "Join_With_Products",
+        "plugin": {
+          "name": "Joiner",
+          "type": "batchjoiner",
+          "label": "Join_With_Products",
+          "artifact": {
+            "name": "core-plugins",
+            "version": "2.13.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "selectedFields": "WranglerProduct.name as name,WranglerProduct.category as category,WranglerProduct.catalog_price as catalog_price,Join_Orders_Customer.order_id as order_id,Join_Orders_Customer.order_date as order_date,Join_Orders_Customer.customer_id as customer_id,Join_Orders_Customer.product_id as product_id,Join_Orders_Customer.qty as qty,Join_Orders_Customer.unit_price as unit_price,Join_Orders_Customer.ship_country as ship_country,Join_Orders_Customer.order_year as order_year,Join_Orders_Customer.order_month as order_month,Join_Orders_Customer.order_day as order_day,Join_Orders_Customer.first_name as first_name,Join_Orders_Customer.last_name as last_name,Join_Orders_Customer.email as email,Join_Orders_Customer.segment as segment",
+            "requiredInputs": "WranglerProduct",
+            "conditionType": "basic",
+            "joinKeys": "WranglerProduct.product_id = Join_Orders_Customer.product_id",
+            "joinNullKeys": "true",
+            "distributionEnabled": "false",
+            "schema": "{\"type\":\"record\",\"name\":\"join.typeoutput\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"join.typeoutput\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "inputSchema": [
+          {
+            "name": "WranglerProduct",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"}]}"
+          },
+          {
+            "name": "Join_Orders_Customer",
+            "schema": "{\"type\":\"record\",\"name\":\"join.typeoutput\",\"fields\":[{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "id": "Join_With_Products"
+      },
+      {
+        "name": "Join_With_Promos",
+        "plugin": {
+          "name": "Joiner",
+          "type": "batchjoiner",
+          "label": "Join_With_Promos",
+          "artifact": {
+            "name": "core-plugins",
+            "version": "2.13.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "selectedFields": "WranglerPromos.promo_name as promo_name,WranglerPromos.discount_pct as discount_pct,Join_With_Products.name as name,Join_With_Products.category as category,Join_With_Products.catalog_price as catalog_price,Join_With_Products.order_id as order_id,Join_With_Products.order_date as order_date,Join_With_Products.customer_id as customer_id,Join_With_Products.product_id as product_id,Join_With_Products.qty as qty,Join_With_Products.unit_price as unit_price,Join_With_Products.ship_country as ship_country,Join_With_Products.order_year as order_year,Join_With_Products.order_month as order_month,Join_With_Products.order_day as order_day,Join_With_Products.first_name as first_name,Join_With_Products.last_name as last_name,Join_With_Products.email as email,Join_With_Products.segment as segment",
+            "requiredInputs": "Join_With_Products",
+            "conditionType": "basic",
+            "joinKeys": "WranglerPromos.product_id = Join_With_Products.product_id",
+            "joinNullKeys": "true",
+            "distributionEnabled": "false",
+            "schema": "{\"type\":\"record\",\"name\":\"join.typeoutput\",\"fields\":[{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"join.typeoutput\",\"fields\":[{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "inputSchema": [
+          {
+            "name": "WranglerPromos",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"}]}"
+          },
+          {
+            "name": "Join_With_Products",
+            "schema": "{\"type\":\"record\",\"name\":\"join.typeoutput\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "id": "Join_With_Promos"
+      },
+      {
+        "name": "WranglerFinalize",
+        "plugin": {
+          "name": "Wrangler",
+          "type": "transform",
+          "label": "WranglerFinalize",
+          "artifact": {
+            "name": "wrangler-transform",
+            "version": "4.11.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "field": "*",
+            "expressionLanguage": "jexl",
+            "precondition": "false",
+            "directives": "fill-null-or-empty :unit_price 0.0\nfill-null-or-empty :qty 0\nderive-column :gross_amount qty*unit_price\nderive-column :net_amount gross_amount*(1-(discount_pct/100))\nfilter-row-if-true qty <=0 || unit_price<=0",
+            "on-error": "fail-pipeline",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "inputSchema": [
+          {
+            "name": "Join_With_Promos",
+            "schema": "{\"type\":\"record\",\"name\":\"join.typeoutput\",\"fields\":[{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "id": "WranglerFinalize"
+      },
+      {
+        "name": "BigQuerySink",
+        "plugin": {
+          "name": "BigQueryTable",
+          "type": "batchsink",
+          "label": "BigQuerySink",
+          "artifact": {
+            "name": "google-cloud",
+            "version": "0.24.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "useConnection": "false",
+            "dataset": "retail_curated",
+            "table": "curated_sales",
+            "operation": "insert",
+            "truncateTable": "false",
+            "allowSchemaRelaxation": "false",
+            "readTimeout": "120",
+            "location": "US",
+            "createPartitionedTable": "false",
+            "partitioningType": "TIME",
+            "timePartitioningType": "DAY",
+            "partitionFilterRequired": "false",
+            "schema": "{\"type\":\"record\",\"name\":\"curated_sales\",\"fields\":[{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}",
+            "project": "auto-detect",
+            "serviceAccountType": "filePath",
+            "serviceFilePath": "auto-detect"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"curated_sales\",\"fields\":[{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "inputSchema": [
+          {
+            "name": "WranglerFinalize",
+            "schema": "{\"type\":\"record\",\"name\":\"curated_sales\",\"fields\":[{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"order_id\",\"type\":\"string\"},{\"name\":\"order_date\",\"type\":\"string\"},{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"qty\",\"type\":\"int\"},{\"name\":\"unit_price\",\"type\":\"double\"},{\"name\":\"ship_country\",\"type\":\"string\"},{\"name\":\"order_year\",\"type\":\"int\"},{\"name\":\"order_month\",\"type\":\"int\"},{\"name\":\"order_day\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "id": "BigQuerySink"
+      },
+      {
+        "name": "CustomerTXT",
+        "plugin": {
+          "name": "GCSFile",
+          "type": "batchsource",
+          "label": "CustomerTXT",
+          "artifact": {
+            "name": "google-cloud",
+            "version": "0.24.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "useConnection": "true",
+            "referenceName": "gcp-bo-25.customers.txt",
+            "path": "gs://${_BUCKET}/customers.txt",
+            "format": "delimited",
+            "sampleSize": "1000",
+            "filenameOnly": "false",
+            "recursive": "false",
+            "ignoreNonExistingFolders": "false",
+            "encrypted": "false",
+            "fileEncoding": "UTF-8",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}",
+            "connection": "${conn(Cloud Storage Default)}",
+            "delimiter": "|",
+            "enableQuotedValues": "false",
+            "skipHeader": "true"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "id": "CustomerTXT"
+      },
+      {
+        "name": "WranglerCustomer",
+        "plugin": {
+          "name": "Wrangler",
+          "type": "transform",
+          "label": "WranglerCustomer",
+          "artifact": {
+            "name": "wrangler-transform",
+            "version": "4.11.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "field": "*",
+            "expressionLanguage": "jexl",
+            "precondition": "false",
+            "directives": "set-column :email lower(trim(email))\nset-column :segment upper(trim(segment))",
+            "on-error": "fail-pipeline",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "inputSchema": [
+          {
+            "name": "CustomerTXT",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"customer_id\",\"type\":\"int\"},{\"name\":\"first_name\",\"type\":\"string\"},{\"name\":\"last_name\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"segment\",\"type\":\"string\"}]}"
+          }
+        ],
+        "id": "WranglerCustomer"
+      },
+      {
+        "name": "ProductsCSV",
+        "plugin": {
+          "name": "GCSFile",
+          "type": "batchsource",
+          "label": "ProductsCSV",
+          "artifact": {
+            "name": "google-cloud",
+            "version": "0.24.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "useConnection": "true",
+            "referenceName": "gcp-bo-25.products.csv",
+            "path": "gs://${_BUCKET}/products.csv",
+            "format": "csv",
+            "sampleSize": "1000",
+            "filenameOnly": "false",
+            "recursive": "false",
+            "ignoreNonExistingFolders": "false",
+            "encrypted": "false",
+            "fileEncoding": "UTF-8",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"currency\",\"type\":\"string\"}]}",
+            "enableQuotedValues": "false",
+            "skipHeader": "true",
+            "connection": "${conn(Cloud Storage Default)}"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"currency\",\"type\":\"string\"}]}"
+          }
+        ],
+        "id": "ProductsCSV"
+      },
+      {
+        "name": "WranglerProduct",
+        "plugin": {
+          "name": "Wrangler",
+          "type": "transform",
+          "label": "WranglerProduct",
+          "artifact": {
+            "name": "wrangler-transform",
+            "version": "4.11.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "field": "*",
+            "expressionLanguage": "jexl",
+            "precondition": "false",
+            "directives": "set-column :catalog_price toDouble(catalog_price)\ndrop :currency",
+            "on-error": "fail-pipeline",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"}]}"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"}]}"
+          }
+        ],
+        "inputSchema": [
+          {
+            "name": "ProductsCSV",
+            "schema": "{\"type\":\"record\",\"name\":\"text\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"category\",\"type\":\"string\"},{\"name\":\"catalog_price\",\"type\":\"double\"},{\"name\":\"currency\",\"type\":\"string\"}]}"
+          }
+        ],
+        "id": "WranglerProduct"
+      },
+      {
+        "name": "PromotionJSON",
+        "plugin": {
+          "name": "GCSFile",
+          "type": "batchsource",
+          "label": "PromotionJSON",
+          "artifact": {
+            "name": "google-cloud",
+            "version": "0.24.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "useConnection": "false",
+            "project": "auto-detect",
+            "serviceAccountType": "filePath",
+            "referenceName": "source_promotion",
+            "path": "gs://${_BUCKET}/promotions.json",
+            "format": "json",
+            "sampleSize": "1000",
+            "filenameOnly": "false",
+            "recursive": "false",
+            "ignoreNonExistingFolders": "false",
+            "encrypted": "false",
+            "fileEncoding": "UTF-8",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"}]}",
+            "serviceFilePath": "auto-detect"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"}]}"
+          }
+        ],
+        "id": "PromotionJSON"
+      },
+      {
+        "name": "WranglerPromos",
+        "plugin": {
+          "name": "Wrangler",
+          "type": "transform",
+          "label": "WranglerPromos",
+          "artifact": {
+            "name": "wrangler-transform",
+            "version": "4.11.1",
+            "scope": "SYSTEM"
+          },
+          "properties": {
+            "field": "*",
+            "expressionLanguage": "jexl",
+            "precondition": "false",
+            "directives": "fill-null-or-empty :discount_pct 0\nset-column :discount_pct toDouble(discount_pct)",
+            "on-error": "fail-pipeline",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"}]}"
+          }
+        },
+        "outputSchema": [
+          {
+            "name": "etlSchemaBody",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"}]}"
+          }
+        ],
+        "inputSchema": [
+          {
+            "name": "PromotionJSON",
+            "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"product_id\",\"type\":\"int\"},{\"name\":\"promo_name\",\"type\":\"string\"},{\"name\":\"discount_pct\",\"type\":\"double\"}]}"
+          }
+        ],
+        "id": "WranglerPromos"
+      }
+    ],
+    "schedule": "0 1 */1 * *",
+    "engine": "spark",
+    "numOfRecordsPreview": 100,
+    "rangeRecordsPreview": {
+      "min": 1,
+      "max": "5000"
+    },
+    "maxConcurrentRuns": 1
+  }
+}

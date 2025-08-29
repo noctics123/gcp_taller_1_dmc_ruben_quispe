@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Cloud Build: Deploy Taller1",
+      "type": "shell",
+      "command": "gcloud builds submit --config cloudbuild.yaml --substitutions=_REGION=us-central1,_BQ_LOCATION=US,_CDF_INSTANCE=taller1-cdf,_BQ_DATASET=retail_curated,_BUCKET=${env:USERNAME}-taller1-raw",
+      "problemMatcher": []
+    }
+  ]
+}
